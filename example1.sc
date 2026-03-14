@@ -1,21 +1,23 @@
-// This is a simple example using a saw wave synth. Walking up a scale, then applying randomness
 (
 SynthDef.new(name:\simple, ugenGraphFunc:{
     | out, freq = 440, pan = 0, dur = 1, atk = 0.1, dec = -4, amp = 0.5, width = 0.1 |
+    var pitchMod = SinOsc.kr(LFNoise0.kr(10,5), freq / 10);
     var source = 
-        Saw.ar(freq / 2, amp) *
+        Saw.ar(freq + pitchMod, amp) *
         Env.perc( atk, dur, curve:dec).ar(doneAction: Done.freeSelf);
     var filtered = BPF.ar(
         source,
-        freq,
-        XLine.kr(1,0.01,dur),
+        freq * Rand(1,5).floor,
+        XLine.kr(width,0.01,dur/2),
     );
     var panned = Pan2.ar(filtered, pan);
     Out.ar(bus:out, channelsArray:panned)
 }, rates:nil, prependArgs:nil, variants:nil, metadata:nil).add;
+
 )
 
 (
+// Generate a random 4 beat melody
 Tdef(\melody,
     {
         var stochasticPattern = p({
@@ -32,14 +34,14 @@ Tdef(\melody,
         });
         var deltas = [1/4,1/2,1,2];
         var deltaProbs = [
-            [0.9,0,0,0.1],
+            [0.1,0,0.8,0.1],
             [0.5,0.2,0.3,0],
             [0.4,0.4,0.2,0],
             [0.5,0.5,0,0],
         ];
         var deltaStream = stochasticPattern.asStream;
         var pitchStream = stochasticPattern.asStream;
-        var pitches = (Scale.major.degrees + 60).midicps;
+        var pitches = (Scale.major.degrees + 53).midicps;
 
         // Pitches will transition randomly from one state to the next
         var pMat1 = [
@@ -59,7 +61,9 @@ Tdef(\melody,
             { | r, c | if ( c == (r + 1 % pitches.size) , 1,0) }
         );
         var nextPitch;
-        loop {
+        var nextDelta;
+        var totalDur = 0;
+        while ({totalDur < 4}) {
             nextPitch = pitchStream.next([pitches,pMat1]);
             Synth(\simple, [
                 \freq, nextPitch,
@@ -67,15 +71,15 @@ Tdef(\melody,
                 \dec, -8,
                 \dur, 4,
                 \atk, 0.01,
-                \width, 0.01,
-                \amp, 1
+                \width, 0.2,
+                \amp, rrand(0.7,1)
             ]);
-            deltaStream.next([deltas, deltaProbs]).yield;
+            nextDelta = deltaStream.next([deltas, deltaProbs]);
+            totalDur = totalDur + nextDelta;
+            nextDelta.yield;
         }
     }
 );
 )
 
 Tdef(\melody).play;
-Tdef(\melody).stop;
-
