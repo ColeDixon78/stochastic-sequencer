@@ -4,7 +4,7 @@
 // add a transient to the bass
 (
 SynthDef.new(name:\simple, ugenGraphFunc:{
-    | out, freq = 440, pan = 0, dur = 1, atk = 0.1, dec = -4, amp = 0.5, width = 0.1 |
+    | out, freq = 440, freq2 = 880, pan = 0, dur = 1, atk = 0.1, dec = -4, amp = 0.5, width = 0.1 |
     var pitchMod = SinOsc.kr(
         freq: LFNoise0.kr(10,5),
         mul: 2
@@ -17,12 +17,34 @@ SynthDef.new(name:\simple, ugenGraphFunc:{
         freq * Rand(1,5).floor,
         XLine.kr(width,0.01,dur/2),
     );
-    var panned = Pan2.ar(filtered, pan);
+    var pitchMod2 = SinOsc.kr(
+        freq: LFNoise0.kr(10,5),
+        mul: 2,
+        phase: 1/3
+    );
+    var source2 = 
+        Saw.ar(freq2 + pitchMod, amp * 0.4) *
+        Env.perc( atk, dur, curve:dec).kr(doneAction: Done.freeSelf);
+    var filtered2 = BPF.ar(
+        source,
+        freq2 * Rand(1,5).floor,
+        XLine.kr(width,0.01,dur/2),
+    );
+    var panned = Pan2.ar(Mix.ar([filtered, filtered2]), pan);
     Out.ar(bus:out, channelsArray:panned)
 }, rates:nil, prependArgs:nil, variants:nil, metadata:nil).add;
 
 SynthDef.new(name:\bass, ugenGraphFunc:{
-    | out, freq = 440, atk = 0.1, sus = 0.5, rel = 1, amp = 1, gate = 1, pan = 0 |
+    | out, freq = 440, atk = 0.1, sus = 0.5, rel = 1, amp = 1, gate = 1, pan = 0 , modIdx = 10|
+    var high = HPF.ar(
+        PMOsc.ar(
+            freq * 6 + LFTri.kr(0.5, mul: 10),
+            LFNoise0.kr(Line.kr(0,12,sus * 2), mul: 8).floor * freq,
+            modIdx, 
+            mul: 0.1
+        ),
+        800
+    ) * Env.linen(attackTime: sus * 2, sustainTime: 1, releaseTime: 0.1).ar();
     var source = LPF.ar(
         (
             SinOsc.ar(
@@ -41,7 +63,7 @@ SynthDef.new(name:\bass, ugenGraphFunc:{
         ).ar(doneAction:Done.freeSelf, gate: gate),
         freq + Line.kr(0, freq * 4, atk * 3)
     );
-    var panned = Pan2.ar(source , pan + LFTri.kr(1, mul: 0.2));
+    var panned = Pan2.ar(Mix.ar([source, high]) , pan + LFTri.kr(1, mul: 0.2));
     Out.ar(bus:out, channelsArray:panned)
 }, rates:nil, prependArgs:nil, variants:nil, metadata:nil).add;
 )
@@ -97,21 +119,13 @@ Tdef(\melody,
             nextPitch = pitchStream.next([pitches,pMat1, pitches.size.rand]);
             Synth(\simple, [
                 \freq, nextPitch,
+                \freq2, nextPitch * [2,3,6].choose,
                 \pan, 1.0.rand2,
                 \dec, -8,
                 \dur, 4,
                 \atk, 0.01,
                 \width, 0.2,
                 \amp, rrand(0.3,0.6)
-            ]);
-            Synth(\simple, [
-                \freq, nextPitch * [2,3,6].choose,
-                \pan, 1.0.rand2,
-                \dec, -2,
-                \dur, 2,
-                \atk, 0.1,
-                \width, 0.2,
-                \amp, rrand(0.1,0.4)
             ]);
             nextDelta = deltaStream.next([deltas, deltaProbs, deltas.size.rand]);
             totalDur = totalDur + nextDelta;
@@ -123,20 +137,19 @@ Tdef(\melody,
 
 (
 Routine({
-    var delta = 4;
+    var delta = 6;
     loop {
         Tdef(\melody).play;
         Synth(\bass, [
             \freq: (Scale.major.degrees + 41).choose.midicps,
             \amp: 1,
-            \atk: rrand(0.1,0.4),
-            \rel: rrand(1,2),
-            \sus: rrand(2,3)
+            \atk: rrand(delta / 50 ,delta / 10),
+            \rel: rrand(delta / 4, delta / 2),
+            \sus: rrand(delta / 2, delta / 1.5),
+            \modIdx: exprand(100,500)
         ]);
         delta.yield;
     }
 }).play;
 )
 
-LevelIndicator.meterServer(s)
-[24,23].size.rand
