@@ -1,3 +1,4 @@
+//TODO fix server timing
 Server.default.waitForBoot {
     SynthDef.new(name:\simple, ugenGraphFunc:{
         | out, freq = 440, freq2 = 880, pan = 0, dur = 1, atk = 0.1, dec = -4, amp = 0.5, width = 0.1 |
@@ -132,16 +133,18 @@ Server.default.waitForBoot {
             while ({totalDur < 4}) {
                 nextPitch = pitchStream.next([pitches,pMat1, pitches.size.rand]);
                 nextDelta = deltaStream.next([deltas, deltaProbs, deltas.size.rand]);
-                Synth(\simple, [
-                    \freq, nextPitch,
-                    \freq2, nextPitch * [2,3,6].choose,
-                    \pan, 1.0.rand2,
-                    \dec, -8,
-                    \dur, nextDelta * 4,
-                    \atk, 0.01,
-                    \width, 0.2,
-                    \amp, rrand(0.3,0.6)
-                ]);
+                Server.default.bind {
+                    Synth(\simple, [
+                        \freq, nextPitch,
+                        \freq2, nextPitch * [2,3,6].choose,
+                        \pan, 1.0.rand2,
+                        \dec, -8,
+                        \dur, nextDelta * 4,
+                        \atk, 0.01,
+                        \width, 0.2,
+                        \amp, rrand(0.6,0.9)
+                    ])
+                };
                 totalDur = totalDur + nextDelta;
                 nextDelta.yield;
             }
@@ -163,14 +166,16 @@ Server.default.waitForBoot {
                 \dur, Pgeom(1,1/2,8)
             ).play;
             Tdef(\melody).play;
-            Synth(\bass, [
-                \freq: (Scale.major.degrees + 41).choose.midicps,
-                \amp: 1,
-                \atk: rrand(delta / 50 ,delta / 10),
-                \rel: rrand(delta / 4, delta / 2),
-                \sus: rrand(delta / 2, delta / 1.5),
-                \modIdx: exprand(100,500)
-            ]);
+            Server.default.bind {
+                Synth(\bass, [
+                    \freq: (Scale.major.degrees + 41).choose.midicps,
+                    \amp: 1,
+                    \atk: rrand(delta / 50 ,delta / 10),
+                    \rel: rrand(delta / 4, delta / 2),
+                    \sus: rrand(delta / 2, delta / 1.5),
+                    \modIdx: exprand(100,500)
+                ])
+            };
             delta.yield;
         };
         0.exit;
